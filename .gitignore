@@ -3,6 +3,9 @@ __pycache__
 /.venv
 /dist
 /build
+
+#write by iemon_kun (GitHub: iemon-kun)
 .sample/
 memo.txt
 audio_materials/
+todo.md

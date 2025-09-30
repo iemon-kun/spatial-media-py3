@@ -348,7 +348,8 @@ def parse_spherical_xml(contents, console):
                 index += len("<rdf:SphericalVideo")
                 contents = contents[:index] + RDF_PREFIX + contents[index:]
             parsed_xml = xml.etree.ElementTree.XML(contents)
-            console("\t\tWarning missing rdf prefix:", RDF_PREFIX)
+            # console expects a single string argument
+            console("\t\tWarning missing rdf prefix: " + RDF_PREFIX)
         except xml.etree.ElementTree.ParseError as e:
             console("\t\tParser Error on XML")
             console(traceback.format_exc())
@@ -363,8 +364,9 @@ def parse_spherical_xml(contents, console):
             sphericalDictionary[SPHERICAL_TAGS[child.tag]] = child.text
         else:
             tag = child.tag
-            if child.tag[:len(spherical_prefix)] == spherical_prefix:
-                tag = child.tag[len(spherical_prefix):]
+            # Use the defined constant name for Python 3 compatibility
+            if child.tag[:len(SPHERICAL_PREFIX)] == SPHERICAL_PREFIX:
+                tag = child.tag[len(SPHERICAL_PREFIX):]
             console("\t\tUnknown: " + tag + " = " + child.text)
 
     return sphericalDictionary
@@ -609,9 +611,10 @@ def get_descriptor_length(in_fh):
     descriptor_length = 0
     for i in range(4):
         size_byte = struct.unpack(">c", in_fh.read(1))[0]
+        # struct.unpack('>c') returns a single-byte 'bytes' in Py3; index it.
         descriptor_length = (descriptor_length << 7 |
-                             ord(size_byte) & int("0x7f", 0))
-        if (ord(size_byte) != int("0x80", 0)):
+                             (size_byte[0] & int("0x7f", 0)))
+        if (size_byte[0] != int("0x80", 0)):
             break
     return descriptor_length
 
@@ -695,7 +698,7 @@ def get_aac_num_channels(box, in_fh):
         descriptor_tag = struct.unpack(">c", in_fh.read(1))[0]
 
         # Verify the read descriptor is an elementary stream descriptor
-        if ord(descriptor_tag) != 3:  # Not an MP4 elementary stream.
+        if descriptor_tag[0] != 3:  # Not an MP4 elementary stream.
             print("Error: failed to read elementary stream descriptor.")
             return -1
         get_descriptor_length(in_fh)
@@ -703,7 +706,7 @@ def get_aac_num_channels(box, in_fh):
         config_descriptor_tag = struct.unpack(">c", in_fh.read(1))[0]
 
         # Verify the read descriptor is a decoder config. descriptor.
-        if ord(config_descriptor_tag) != 4:
+        if config_descriptor_tag[0] != 4:
             print("Error: failed to read decoder config. descriptor.")
             return -1
         get_descriptor_length(in_fh)
@@ -711,7 +714,7 @@ def get_aac_num_channels(box, in_fh):
         decoder_specific_descriptor_tag = struct.unpack(">c", in_fh.read(1))[0]
 
         # Verify the read descriptor is a decoder specific info descriptor
-        if ord(decoder_specific_descriptor_tag) != 5:
+        if decoder_specific_descriptor_tag[0] != 5:
             print("Error: failed to read MP4 audio decoder specific config.")
             return -1
         audio_specific_descriptor_size = get_descriptor_length(in_fh)

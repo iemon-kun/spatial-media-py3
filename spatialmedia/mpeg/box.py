@@ -109,7 +109,7 @@ class Box(object):
     def set(self, new_contents):
         """Sets / overwrites the box contents."""
         self.contents = new_contents
-        self.content_size = len(contents)
+        self.content_size = len(new_contents)
 
     def size(self):
         """Total size of a box.

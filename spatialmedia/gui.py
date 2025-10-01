@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# This file has been modified by iemon_kun (GitHub: iemon-kun) (2025) for Python 3 compatibility.
+
 # Copyright 2016 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,6 +53,7 @@ from spatialmedia import metadata_utils
 
 SPATIAL_AUDIO_LABEL = "My video has spatial audio (ambiX ACN/SN3D format)"
 HEAD_LOCKED_STEREO_LABEL = "with head-locked stereo"
+V2_LABEL = "Use Spherical Video Metadata V2 (sv3d)"
 
 
 def make_dpi_aware():
@@ -127,8 +130,11 @@ class Application(tk.Frame):
             else:
                 self.var_spherical.set(0)
 
-            if metadata.get("StereoMode", "") == "top-bottom":
+            stereo_mode = metadata.get("StereoMode", "")
+            if stereo_mode in ("top-bottom", "left-right"):
                 self.var_3d.set(1)
+                # Reflect detected stereo mode for v1 metadata
+                self.var_3d_mode.set(stereo_mode)
             else:
                 self.var_3d.set(0)
 
@@ -142,10 +148,21 @@ class Application(tk.Frame):
         """Process all selected files for injection."""
         stereo = None
         if self.var_3d.get():
-            stereo = "top-bottom"
+            stereo = self.var_3d_mode.get() or "top-bottom"
 
         metadata = metadata_utils.Metadata()
-        metadata.video = metadata_utils.generate_spherical_xml(stereo=stereo)
+        # If V2 is selected, set projection/stereo_mode for sv3d; otherwise inject v1 XML
+        if self.var_v2.get():
+            # Only set projection when spherical is selected
+            if self.var_spherical.get():
+                metadata.projection = "equirectangular"
+                metadata.stereo_mode = stereo
+        else:
+            metadata.video = None
+            if self.var_spherical.get():
+                metadata.video = metadata_utils.generate_spherical_xml(
+                    stereo=stereo
+                )
 
         if self.var_spatial_audio.get():
             metadata.audio = metadata_utils.get_spatial_audio_metadata(
@@ -222,10 +239,20 @@ class Application(tk.Frame):
             self.button_inject.configure(state="normal")
             if self.spatial_audio_description.is_supported:
                 self.checkbox_spatial_audio.configure(state="normal")
+            # Enable V2 toggle when spherical
+            self.checkbox_v2.configure(state="normal")
         else:
             self.checkbox_3D.configure(state="disabled")
             self.button_inject.configure(state="disabled")
             self.checkbox_spatial_audio.configure(state="disabled")
+            self.checkbox_v2.configure(state="disabled")
+        # 3D layout selection radio buttons
+        if self.var_spherical.get() and self.var_3d.get():
+            self.radio_3d_tb.configure(state="normal")
+            self.radio_3d_lr.configure(state="normal")
+        else:
+            self.radio_3d_tb.configure(state="disabled")
+            self.radio_3d_lr.configure(state="disabled")
         if self.spatial_audio_description.has_head_locked_stereo:
             self.label_spatial_audio.configure(
                 text="{}\n{}".format(SPATIAL_AUDIO_LABEL, HEAD_LOCKED_STEREO_LABEL)
@@ -293,6 +320,32 @@ class Application(tk.Frame):
         self.checkbox_3D = tk.Checkbutton(self, variable=self.var_3d)
         self.checkbox_3D["command"] = self.action_set_3d
         self.checkbox_3D.grid(row=row, column=column, padx=PAD_X, pady=2)
+
+        # 3D layout selection (Top/Bottom or Left/Right)
+        row = row + 1
+        column = 0
+        self.label_3d_mode = tk.Label(self, anchor="w")
+        self.label_3d_mode["text"] = "3D layout"
+        self.label_3d_mode.grid(row=row, column=column, padx=PAD_X, pady=7, sticky="w")
+        column += 1
+        self.var_3d_mode = tk.StringVar(value="top-bottom")
+        self.radio_3d_tb = tk.Radiobutton(self, text="top-bottom", variable=self.var_3d_mode, value="top-bottom")
+        self.radio_3d_tb.grid(row=row, column=column, padx=4, pady=2, sticky="w")
+        column += 1
+        self.radio_3d_lr = tk.Radiobutton(self, text="left-right", variable=self.var_3d_mode, value="left-right")
+        self.radio_3d_lr.grid(row=row, column=column, padx=4, pady=2, sticky="w")
+
+        # V2 injection toggle
+        row = row + 1
+        column = 0
+        self.label_v2 = tk.Label(self, anchor="w")
+        self.label_v2["text"] = V2_LABEL
+        self.label_v2.grid(row=row, column=column, padx=PAD_X, pady=7, sticky="w")
+        column += 1
+        self.var_v2 = tk.IntVar()
+        self.checkbox_v2 = tk.Checkbutton(self, variable=self.var_v2)
+        self.checkbox_v2["command"] = self.action_set_spherical
+        self.checkbox_v2.grid(row=row, column=column, padx=PAD_X, pady=2)
 
         # Spatial Audio Checkbox
         row += 1

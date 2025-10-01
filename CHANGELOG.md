@@ -28,3 +28,30 @@
 
 - リポジトリ整備
   - `.gitignore` を拡張し、仮想環境・ビルド成果物・サンプル・個人メモ等を除外（例: `.venv/`, `dist/`, `build/`, `.sample/`, `memo.txt`, `audio_materials/`, `todo.md`）。
+
+## [2.1a2-py3.0] - 2025-10-01
+
+- 機能追加（GUI）
+  - 「Spherical Video Metadata V2（sv3d）」注入オプションを追加（v1 XML との切り替え）。
+  - 立体視レイアウト選択（`top-bottom`/`left-right`）を追加。v1/v2 双方の注入に反映。
+  - メタデータ読込時、v1 の StereoMode を検出して GUI に反映（TB/LR）。
+
+- 内部仕様
+  - V2 有効時は `projection=equirectangular` を設定し、必要に応じて `stereo_mode` を設定して注入。
+  - V2 無効時は従来どおり v1 XML（uuid）を生成し、StereoMode を必要に応じて付与。
+
+- 影響ファイル
+  - `spatialmedia/gui.py`
+
+- 既知の制限
+  - VR180（`mshp` メッシュ投影）には未対応（上流ツールの対象外）。
+  - 非球面 3D のみ（st3d 単独注入）は GUI 未対応。CLI（例: `-2 -p none -s left-right`）を利用してください。
+
+- ドキュメント
+  - `README.md` に GUI の新機能（V2 トグル、TB/LR 選択）、使い方（GUI/CLI）、確認チェックリストを追記。
+
+- ライセンス/帰属
+  - `spatialmedia/gui.py` の先頭に改変表記を追記（Apache-2.0 §4 準拠）。
+
+- 検証
+  - CLI スモークテストで v1/v2、TB/LR、SA3D の注入経路を確認（`.sample/test_outputs/` に出力）。

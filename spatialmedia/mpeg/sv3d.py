@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# This file has been modified by iemon_kun (GitHub: iemon-kun) (2025) for Python 3 compatibility.
+
 # Copyright 2016 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +33,8 @@ def is_supported_box_name(name):
     """Returns true if the box name is a supported sv3d box."""
     return (name == constants.TAG_PRHD or
             name == constants.TAG_EQUI or
-            name == constants.TAG_ST3D)
+            name == constants.TAG_ST3D or
+            name == constants.TAG_SVHD)
 
 
 def load(fh, position=None, end=None):
@@ -57,6 +60,8 @@ def load(fh, position=None, end=None):
         box = EQUIBox()
     elif name == constants.TAG_ST3D:
         box = ST3DBox()
+    elif name == constants.TAG_SVHD:
+        box = SVHDBox()
     else:
         print("Error: box is not a supported SV3D sub-box.")
         return None
@@ -209,3 +214,56 @@ class ST3DBox(box.Box):
     def load_content(self, in_fh):
         in_fh.read(4) # Version and flags
         self.stereo_mode = int(struct.unpack(">B", in_fh.read(1))[0])
+
+
+class SVHDBox(box.Box):
+    def __init__(self):
+        box.Box.__init__(self)
+        self.name = constants.TAG_SVHD
+        self.header_size = 8
+        self.metadata_source = "Spherical Metadata Tooling"
+        # 4 bytes (version+flags) + len(str) + null terminator
+        self.content_size = 4 + len(self.metadata_source.encode("utf-8")) + 1
+
+    @staticmethod
+    def create(metadata_source="Spherical Metadata Tooling"):
+        new_box = SVHDBox()
+        if metadata_source:
+            new_box.metadata_source = metadata_source
+            new_box.content_size = 4 + len(new_box.metadata_source.encode("utf-8")) + 1
+        return new_box
+
+    def print_box(self, console):
+        console("\t\t\tSVHD {")
+        console("\t\t\t\tMetadata Source: %s" % self.metadata_source)
+        console("\t\t\t}")
+
+    def save(self, in_fh, out_fh, delta):
+        if (self.header_size == 16):
+            out_fh.write(struct.pack(">I", 1))
+            out_fh.write(struct.pack(">Q", self.size()))
+            out_fh.write(self.name)
+        elif(self.header_size == 8):
+            out_fh.write(struct.pack(">I", self.size()))
+            out_fh.write(self.name)
+        # version and flags
+        out_fh.write(struct.pack(">I", 0))
+        # null-terminated UTF-8 string
+        data = self.metadata_source.encode("utf-8") + b"\x00"
+        out_fh.write(data)
+
+    def load_content(self, in_fh):
+        # version and flags
+        in_fh.read(4)
+        # remaining bytes until end of box content are the string (null-terminated)
+        remaining = self.content_size - 4
+        if remaining <= 0:
+            self.metadata_source = ""
+            return
+        raw = in_fh.read(remaining)
+        # split at first null byte if present
+        parts = raw.split(b"\x00", 1)
+        try:
+            self.metadata_source = parts[0].decode("utf-8")
+        except Exception:
+            self.metadata_source = ""

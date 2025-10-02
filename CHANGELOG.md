@@ -55,3 +55,11 @@
 
 - 検証
   - CLI スモークテストで v1/v2、TB/LR、SA3D の注入経路を確認（`.sample/test_outputs/` に出力）。
+
+- バグ修正（V2 メタデータ）
+  - `sv3d` に必須の `svhd`（Spherical Video Header）を実装し、注入フローに追加。
+  - ffprobe の "Missing spherical video header" 警告を解消。
+  - 影響ファイル: `spatialmedia/mpeg/sv3d.py`, `spatialmedia/metadata_utils.py`
+
+- ライセンス/帰属
+  - `spatialmedia/mpeg/sv3d.py` の先頭に改変表記を追記（Apache-2.0 §4 準拠）。

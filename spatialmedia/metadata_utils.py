@@ -247,6 +247,8 @@ def inject_spatial_video_v2_atoms(in_fh, video_media_atom, projection, stereo_mo
                             sv3d_atom = mpeg.container.Container(header_size=8)
                             sv3d_atom.name = mpeg.constants.TAG_SV3D
 
+                            # Add SVHD (required by spec) before PROJ
+                            sv3d_atom.add(mpeg.sv3d.SVHDBox.create("Spherical Metadata Tooling"))
                             sv3d_atom.add(proj_atom)
 
                             sample_description.remove(sv3d_atom.name)

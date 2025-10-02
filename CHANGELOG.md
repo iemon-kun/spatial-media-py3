@@ -53,6 +53,8 @@
 - ライセンス/帰属
   - `spatialmedia/gui.py` の先頭に改変表記を追記（Apache-2.0 §4 準拠）。
 
+## [2.1a3-py3.0] - 2025-10-02
+
 - 検証
   - CLI スモークテストで v1/v2、TB/LR、SA3D の注入経路を確認（`.sample/test_outputs/` に出力）。
 

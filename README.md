@@ -26,6 +26,56 @@ iemon_kun (GitHub: iemon-kun)が行なった改変は[CHANGELOG](CHANGELOG.md)�
 - 空間音声: FOA/FOA+ヘッドロックの `SA3D` 注入と再生確認（48 kHz）
 - 非球面 3D のみは CLI で実施（`-2 -p none -s left-right`）
 
+## MCP 最小構成（2ツール）
+- エントリポイント: `mcp_server.py`
+- ツール:
+  - `inspect_spatial_metadata`（read-only）
+  - `preview_metadata_settings`（read-only / dry-run）
+- UI リソース: `ui://widget/spatial-metadata-viewer.html`（`mcp_ui/spatial_metadata_widget.html`）
+
+### ローカル起動
+```bash
+./.venv/bin/python mcp_server.py
+```
+- エンドポイント: `http://127.0.0.1:8000/mcp/`
+
+### ローカル検証（MCPクライアント例）
+```bash
+./.venv/bin/python - <<'PY'
+import asyncio
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async def main():
+    async with streamablehttp_client("http://127.0.0.1:8000/mcp/") as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            print([t.name for t in (await session.list_tools()).tools])
+            result = await session.call_tool("inspect_spatial_metadata", {
+                "file_path": "data/testsrc_320x240_h264.mp4",
+                "include_logs": False,
+            })
+            print(result.content[0].text)
+            print((await session.read_resource("ui://widget/spatial-metadata-viewer.html")).contents[0].mimeType)
+
+asyncio.run(main())
+PY
+```
+
+### 自動検証スクリプト
+```bash
+./.venv/bin/python scripts/verify_mcp_apps.py
+./scripts/verify_ignore_hygiene.sh
+```
+
+### MCP Inspector での確認
+- Inspector で接続先を `http://127.0.0.1:8000/mcp/` に設定
+- `inspect_spatial_metadata` を呼び出し、`_meta.ui.resourceUri` が `ui://widget/spatial-metadata-viewer.html` であることを確認
+- `preview_metadata_settings` を呼び出し、`Preview only. No file is modified.` が返ることを確認
+- `read_resource` で `text/html;profile=mcp-app` が返ることを確認
+- CLI モード確認例: `npx @modelcontextprotocol/inspector --cli --transport http --server-url http://127.0.0.1:8000/mcp/`
+- UI でツール選択を切り替え、`inspect` と `preview` の双方が `tools/call` できることを確認
+
 ## 免責事項
 - 本フォークは Google Inc. の公式プロジェクトではありません。Google/YouTube および原著作者とは一切の提携関係にありません。
 - 本ソフトウェアは「現状のまま」提供され、明示または黙示を問わずいかなる保証も行いません。自己責任でご利用ください。

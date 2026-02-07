@@ -1,8 +1,10 @@
 *.pyc
-__pycache__
+__pycache__/
+*.pyo
 /.venv
 /dist
 /build
+.DS_Store
 
 #write by iemon_kun (GitHub: iemon-kun)
 .sample/

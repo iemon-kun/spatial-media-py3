@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spatial Metadata Viewer</title>
+    <style>
+      :root {
+        --bg: #f3f4f6;
+        --panel: #ffffff;
+        --text: #0f172a;
+        --sub: #475569;
+        --line: #dbe2ea;
+        --accent: #0b6cff;
+      }
+
+      body {
+        margin: 0;
+        font-family: "SF Pro Text", "Segoe UI", sans-serif;
+        background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 38%);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px;
+      }
+
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        min-width: 260px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      select,
+      input[type="number"] {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+        background: #fff;
+      }
+
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      h1 {
+        font-size: 18px;
+        margin: 0 0 12px;
+      }
+
+      .sub {
+        font-size: 13px;
+        color: var(--sub);
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      pre {
+        margin: 8px 0 0;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #0b1020;
+        color: #d6deff;
+        overflow: auto;
+        max-height: 360px;
+        font-size: 12px;
+      }
+
+      .cards {
+        display: grid;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        background: #fbfdff;
+      }
+
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        gap: 6px 10px;
+        font-size: 13px;
+      }
+
+      .k {
+        color: var(--sub);
+      }
+
+      .mono {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel">
+        <h1>Spatial Metadata Viewer</h1>
+        <div class="stack">
+          <div class="row">
+            <select id="toolSelect">
+              <option value="inspect_spatial_metadata">inspect_spatial_metadata</option>
+              <option value="preview_metadata_settings">preview_metadata_settings</option>
+            </select>
+            <button id="runBtn" type="button">Run</button>
+          </div>
+
+          <div id="inspectFields" class="row">
+            <input id="filePath" type="text" placeholder="Enter local .mp4/.mov path" />
+          </div>
+
+          <div id="previewFields" class="stack hidden">
+            <div class="row">
+              <select id="projection">
+                <option value="equirectangular">equirectangular</option>
+                <option value="none">none</option>
+              </select>
+              <select id="stereoMode">
+                <option value="none">none</option>
+                <option value="top-bottom">top-bottom</option>
+                <option value="left-right">left-right</option>
+              </select>
+            </div>
+            <div class="row">
+              <input id="crop" type="text" placeholder='crop: "w:h:f_w:f_h:x:y" (optional)' />
+              <input id="audioChannels" type="number" min="0" placeholder="audio channels (optional)" />
+            </div>
+          </div>
+        </div>
+        <p class="sub">
+          This widget uses standard MCP Apps bridge only (`ui/*` + `tools/call`).
+        </p>
+      </div>
+      <div class="panel" style="margin-top: 12px">
+        <div id="status" class="sub">Ready.</div>
+        <div id="result" class="cards"></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const state = { id: 1, pending: new Map() };
+        const statusEl = document.getElementById("status");
+        const resultEl = document.getElementById("result");
+        const runBtn = document.getElementById("runBtn");
+        const toolSelect = document.getElementById("toolSelect");
+        const inspectFields = document.getElementById("inspectFields");
+        const previewFields = document.getElementById("previewFields");
+        const filePathInput = document.getElementById("filePath");
+        const projectionInput = document.getElementById("projection");
+        const stereoModeInput = document.getElementById("stereoMode");
+        const cropInput = document.getElementById("crop");
+        const audioChannelsInput = document.getElementById("audioChannels");
+
+        function setStatus(text) {
+          statusEl.textContent = text;
+        }
+
+        function escapeHtml(text) {
+          return String(text)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;");
+        }
+
+        function renderKeyValue(entries) {
+          return (
+            '<div class="kv">' +
+            entries
+              .map(([k, v]) => `<div class="k">${escapeHtml(k)}</div><div>${escapeHtml(v)}</div>`)
+              .join("") +
+            "</div>"
+          );
+        }
+
+        function renderRaw(obj) {
+          return (
+            '<details><summary class="sub">Raw JSON</summary><pre>' +
+            escapeHtml(JSON.stringify(obj, null, 2)) +
+            "</pre></details>"
+          );
+        }
+
+        function renderInspect(sc, response) {
+          const cards = [];
+          cards.push(
+            '<div class="card"><h3>Summary</h3>' +
+              renderKeyValue([
+                ["file", sc.file_path || "-"],
+                ["video tracks", String(sc.video_track_count ?? "-")],
+                ["audio channels", String(sc.num_audio_channels ?? "-")],
+              ]) +
+              "</div>"
+          );
+
+          if (sc.audio) {
+            cards.push(
+              '<div class="card"><h3>Spatial Audio</h3>' +
+                renderKeyValue([
+                  ["type", sc.audio.ambisonic_type ?? "-"],
+                  ["order", String(sc.audio.ambisonic_order ?? "-")],
+                  ["normalization", sc.audio.ambisonic_normalization ?? "-"],
+                  ["ordering", sc.audio.ambisonic_channel_ordering ?? "-"],
+                  ["head-locked stereo", String(sc.audio.head_locked_stereo ?? "-")],
+                ]) +
+                "</div>"
+            );
+          }
+
+          const trackNames = Object.keys(sc.video_tracks || {});
+          cards.push(
+            '<div class="card"><h3>Video Tracks</h3>' +
+              (trackNames.length
+                ? `<div class="mono">${escapeHtml(trackNames.join(", "))}</div>`
+                : '<div class="sub">No spherical tags found.</div>') +
+              "</div>"
+          );
+
+          resultEl.innerHTML = cards.join("") + renderRaw(response);
+        }
+
+        function renderPreview(sc, response) {
+          const cards = [];
+          cards.push(
+            '<div class="card"><h3>Preview Config</h3>' +
+              renderKeyValue([
+                ["projection", sc.projection ?? "-"],
+                ["stereo_mode", sc.stereo_mode ?? "-"],
+                ["crop", sc.crop || "none"],
+              ]) +
+              "</div>"
+          );
+
+          cards.push(
+            '<div class="card"><h3>V2 Atoms</h3>' +
+              renderKeyValue([
+                ["sv3d", String(sc.v2_atoms?.sv3d ?? false)],
+                ["st3d", String(sc.v2_atoms?.st3d ?? false)],
+                ["projection", String(sc.v2_atoms?.projection ?? "none")],
+                ["stereo_mode", String(sc.v2_atoms?.stereo_mode ?? "none")],
+              ]) +
+              "</div>"
+          );
+
+          if (sc.audio_preview) {
+            cards.push(
+              '<div class="card"><h3>Audio Compatibility</h3>' +
+                renderKeyValue([
+                  ["input channels", String(sc.audio_preview.num_channels ?? "-")],
+                  ["supported", String(sc.audio_preview.is_supported ?? false)],
+                  ["order", String(sc.audio_preview.order ?? "-")],
+                  ["head_locked_stereo", String(sc.audio_preview.head_locked_stereo ?? "-")],
+                ]) +
+                "</div>"
+            );
+          }
+
+          resultEl.innerHTML = cards.join("") + renderRaw(response);
+        }
+
+        function renderError(response) {
+          const text =
+            (response && response.content && response.content[0] && response.content[0].text) ||
+            "Tool call failed.";
+          resultEl.innerHTML =
+            '<div class="card"><h3>Error</h3><div class="mono">' +
+            escapeHtml(text) +
+            "</div></div>" +
+            renderRaw(response);
+        }
+
+        function render(obj) {
+          const response = obj && obj.structuredContent ? obj : obj?.result;
+          if (!response || !response.structuredContent) {
+            resultEl.innerHTML = renderRaw(obj || {});
+            return;
+          }
+
+          if (response.isError) {
+            renderError(response);
+            return;
+          }
+
+          const sc = response.structuredContent || {};
+          if (Object.prototype.hasOwnProperty.call(sc, "video_track_count")) {
+            renderInspect(sc, response);
+            return;
+          }
+          if (Object.prototype.hasOwnProperty.call(sc, "v2_atoms")) {
+            renderPreview(sc, response);
+            return;
+          }
+
+          resultEl.innerHTML = renderRaw(response);
+        }
+
+        function postRpc(message) {
+          window.parent.postMessage(message, "*");
+        }
+
+        function request(method, params) {
+          const id = state.id++;
+          const payload = { jsonrpc: "2.0", id, method, params };
+          return new Promise((resolve, reject) => {
+            state.pending.set(id, { resolve, reject });
+            postRpc(payload);
+          });
+        }
+
+        async function inspect() {
+          const toolName = toolSelect.value;
+          const argumentsPayload = {};
+
+          if (toolName === "inspect_spatial_metadata") {
+            const filePath = filePathInput.value.trim();
+            if (!filePath) {
+              setStatus("Please enter file path.");
+              return;
+            }
+            argumentsPayload.file_path = filePath;
+            argumentsPayload.include_logs = true;
+          } else {
+            argumentsPayload.projection = projectionInput.value;
+            argumentsPayload.stereo_mode = stereoModeInput.value;
+            const crop = cropInput.value.trim();
+            if (crop) argumentsPayload.crop = crop;
+            const audioChannels = audioChannelsInput.value.trim();
+            if (audioChannels) argumentsPayload.audio_channels = Number(audioChannels);
+          }
+
+          setStatus("Calling tools/call...");
+          try {
+            const response = await request("tools/call", {
+              name: toolName,
+              arguments: argumentsPayload,
+            });
+            render(response);
+            setStatus("Done.");
+          } catch (error) {
+            render({ error: String(error) });
+            setStatus("Tool call failed.");
+          }
+        }
+
+        function onMessage(event) {
+          const msg = event.data;
+          if (!msg || msg.jsonrpc !== "2.0") return;
+
+          if (typeof msg.id !== "undefined" && (msg.result || msg.error)) {
+            const p = state.pending.get(msg.id);
+            if (!p) return;
+            state.pending.delete(msg.id);
+            if (msg.error) p.reject(msg.error);
+            else p.resolve(msg.result);
+            return;
+          }
+
+          if (msg.method === "ui/initialize") {
+            postRpc({ jsonrpc: "2.0", id: msg.id, result: { capabilities: {} } });
+            return;
+          }
+
+          if (msg.method === "ui/notifications/tool-input") {
+            const input = msg.params && msg.params.input ? msg.params.input : {};
+            if (typeof input.file_path === "string" && !filePathInput.value) {
+              toolSelect.value = "inspect_spatial_metadata";
+              filePathInput.value = input.file_path;
+            }
+            return;
+          }
+
+          if (msg.method === "ui/notifications/tool-result") {
+            render(msg.params || {});
+            setStatus("Received tool-result notification.");
+          }
+        }
+
+        function onToolChange() {
+          const isInspect = toolSelect.value === "inspect_spatial_metadata";
+          inspectFields.classList.toggle("hidden", !isInspect);
+          previewFields.classList.toggle("hidden", isInspect);
+        }
+
+        window.addEventListener("message", onMessage, { passive: true });
+        toolSelect.addEventListener("change", onToolChange);
+        runBtn.addEventListener("click", inspect);
+        onToolChange();
+      })();
+    </script>
+  </body>
+</html>
